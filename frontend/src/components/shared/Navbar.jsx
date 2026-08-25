@@ -101,7 +101,10 @@ const Navbar = () => {
             <Popover>
               <PopoverTrigger asChild>
                 <Avatar className="cursor-pointer">
-                  <AvatarImage src={user.profilePic} alt={user.fullName} />
+                  <AvatarImage
+                    src={user.profile?.profilePhoto}
+                    alt={user.fullName}
+                  />
                   {/* FIX 5: Updated popover colors */}
                   <AvatarFallback className="bg-sky-100 text-sky-800 font-bold">
                     {getInitials(user.fullName)}
@@ -111,7 +114,10 @@ const Navbar = () => {
               <PopoverContent className="w-80 bg-white border border-slate-200">
                 <div className="flex gap-4">
                   <Avatar>
-                    <AvatarImage src={user.profilePic} alt={user.fullName} />
+                    <AvatarImage
+                      src={user.profile?.profilePhoto}
+                      alt={user.fullName}
+                    />
                     <AvatarFallback className="bg-sky-100 text-sky-800 font-bold">
                       {getInitials(user.fullName)}
                     </AvatarFallback>

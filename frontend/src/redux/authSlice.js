@@ -1,11 +1,12 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { loginUser, logoutUser } from './authThunks.js'; // Import from thunks file
+import { createSlice } from '@reduxjs/toolkit';
+import { loginUser, logoutUser, fetchCurrentUser } from './authThunks.js'; // Import from thunks file
 
 // The initial state now includes the user object
 const initialState = {
   loading: false,
-  user: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null,
-  isAuthenticated: localStorage.getItem('user') ? true : false,
+  user: null,
+  isAuthenticated: false,
+  checked: false, // to know we've attempted to hydrate auth
   error: null,
 };
 
@@ -17,8 +18,6 @@ const authSlice = createSlice({
     updateUser: (state, action) => {
       if (state.user) {
         state.user = { ...state.user, ...action.payload };
-        // Also update localStorage if you persist user there
-        localStorage.setItem('user', JSON.stringify(state.user));
         state.isAuthenticated = !!state.user;
       }
     },
@@ -34,12 +33,14 @@ const authSlice = createSlice({
         state.loading = false;
         state.isAuthenticated = true;
         state.user = action.payload.user; // <-- important
+        state.checked = true;
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false;
         state.isAuthenticated = false;
         state.user = null;
         state.error = action.payload;
+        state.checked = true;
       })
       // Logout cases
       .addCase(logoutUser.pending, (state) => {
@@ -49,10 +50,29 @@ const authSlice = createSlice({
         state.loading = false;
         state.isAuthenticated = false;
         state.user = null; // Clear the user data from the state
+        state.checked = true;
       })
       .addCase(logoutUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload || "Logout failed";
+      })
+      // Fetch current user (secure hydration)
+      .addCase(fetchCurrentUser.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchCurrentUser.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload;
+        state.isAuthenticated = !!action.payload;
+        state.checked = true;
+      })
+      .addCase(fetchCurrentUser.rejected, (state, action) => {
+        state.loading = false;
+        state.user = null;
+        state.isAuthenticated = false;
+        state.error = action.payload;
+        state.checked = true;
       });
   },
 });

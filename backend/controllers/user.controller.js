@@ -301,75 +301,105 @@ export const resendOTP = async (req, res) => {
 };
 
 export const updateUserProfile = async (req, res) => {
-  try {
-    const userId = req.user?.userId; // auth middleware
-    if (!userId) {
-      return res.status(401).json({
-        message: "Unauthorized: No user found.",
-        success: false,
-      });
-    }
-
-    const { fullName, phoneNumber, bio, dob, gender, location } = req.body;
-    const updates = {
-      ...(fullName && { fullName }),
-      ...(phoneNumber && { phoneNumber }),
-      ...(bio && { "profile.bio": bio }),
-      ...(dob && { "profile.dob": dob }),
-      ...(gender && { "profile.gender": gender }),
-      ...(location && { "profile.location": location }),
-    };
-
-    // Handle uploaded profile photo
-    if (req.file) {
-      const result = await cloudinary.uploader.upload_stream(
-        { folder: 'profiles' },
-        async (error, result) => {
-          if (error) {
-            console.error("Cloudinary upload error:", error);
-            return res.status(500).json({
-              message: "Failed to upload profile photo",
-              success: false,
+    try {
+        const userId = req.user?.userId; // auth middleware
+        if (!userId) {
+            return res.status(401).json({
+                message: "Unauthorized: No user found.",
+                success: false,
             });
-          }
-          updates["profile.profilePhoto"] = result.secure_url;
+        }
 
-          const updatedUser = await User.findByIdAndUpdate(
+        const { fullName, phoneNumber, bio, dob, gender, location } = req.body;
+        const updates = {
+            ...(fullName && { fullName }),
+            ...(phoneNumber && { phoneNumber }),
+            ...(bio && { "profile.bio": bio }),
+            ...(dob && { "profile.dob": dob }),
+            ...(gender && { "profile.gender": gender }),
+            ...(location && { "profile.location": location }),
+        };
+
+        // Handle uploaded profile photo
+        if (req.file) {
+            const result = await cloudinary.uploader.upload_stream(
+                { folder: 'profiles' },
+                async (error, result) => {
+                    if (error) {
+                        console.error("Cloudinary upload error:", error);
+                        return res.status(500).json({
+                            message: "Failed to upload profile photo",
+                            success: false,
+                        });
+                    }
+                    updates["profile.profilePhoto"] = result.secure_url;
+
+                    const updatedUser = await User.findByIdAndUpdate(
+                        userId,
+                        { $set: updates },
+                        { new: true, runValidators: true }
+                    );
+
+                    return res.status(200).json({
+                        message: "Profile updated successfully.",
+                        success: true,
+                        user: updatedUser,
+                    });
+                }
+            );
+
+            // Pipe file buffer to Cloudinary
+            result.end(req.file.buffer);
+            return;
+        }
+
+        // If no profile photo uploaded
+        const updatedUser = await User.findByIdAndUpdate(
             userId,
             { $set: updates },
             { new: true, runValidators: true }
-          );
+        );
 
-          return res.status(200).json({
+        return res.status(200).json({
             message: "Profile updated successfully.",
             success: true,
             user: updatedUser,
-          });
-        }
-      );
-
-      // Pipe file buffer to Cloudinary
-      result.end(req.file.buffer);
-      return;
+        });
+    } catch (error) {
+        console.log("Error updating user profile:", error);
+        return res.status(500).json({
+            message: "Failed to update profile.",
+            success: false,
+        });
     }
+};
 
-    // If no profile photo uploaded
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { $set: updates },
-      { new: true, runValidators: true }
-    );
+/**
+ * @description Returns the current authenticated user using the httpOnly JWT cookie.
+ */
+export const me = async (req, res) => {
+    try {
+        const userId = req.id;
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthenticated", success: false });
+        }
+        const user = await User.findById(userId).populate('family');
+        if (!user) {
+            return res.status(404).json({ message: "User not found", success: false });
+        }
 
-    return res.status(200).json({
-      message: "Profile updated successfully.",
-      success: true,
-      user: updatedUser,
-    });
-  } catch (error) {
-    console.log("Error updating user profile:", error);
-    return res.status(500).json({
-      message: "Failed to update profile.",
-      success: false,
-    });
-  }
+       
+        const userResponse = {
+            _id: user._id,
+            fullName: user.fullName,
+            email: user.email,
+            phoneNumber: user.phoneNumber,
+            role: user.role,
+            profile: user.profile,
+        };
+        return res.status(200).json({ success: true, user: userResponse, family: user.family || null });
+    } catch (error) {
+        console.error("Error in me function:", error);
+        return res.status(500).json({ message: "Internal Server Error", success: false });
+    }
 };

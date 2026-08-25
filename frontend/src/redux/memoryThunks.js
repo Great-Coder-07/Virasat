@@ -39,7 +39,7 @@ export const createMemory = createAsyncThunk(
                 },
                 withCredentials: true,
             });
-            toast.success("Memory uploaded successfully.");
+            toast.success(response.data?.message || "Memory created successfully!");
             return response.data.memory;
         } catch (error) {
             const message = error.response?.data?.message || 'Failed to create memory.';

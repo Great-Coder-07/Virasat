@@ -10,6 +10,8 @@ const familySlice = createSlice({
         familyData: null,
         loading: false,
         isFamily: false,
+        loaded: false,
+        lastFetched: 0,
         error: null,
     },
     reducers: {},
@@ -21,12 +23,16 @@ const familySlice = createSlice({
                 const { family } = action.payload;
                 state.isFamily = action.payload.isFamily || false;
                 state.familyData = action.payload.family || null;
+                state.loaded = true;
+                state.lastFetched = Date.now();
             })
 
             .addCase(createFamily.fulfilled, (state, action) => {
                 state.isFamily = true;
                 state.familyData = action.payload;
                 state.loading = false;
+                state.loaded = true;
+                state.lastFetched = Date.now();
             })
             // This part will now work correctly
             // Add pending/rejected cases for robustness
@@ -47,9 +53,13 @@ const familySlice = createSlice({
                 if (newData) {
                     state.familyData = newData;
                     state.isFamily = true;
+                    state.loaded = true;
+                    state.lastFetched = Date.now();
                 } else {
                     state.familyData = null;
                     state.isFamily = false;
+                    state.loaded = true;
+                    state.lastFetched = Date.now();
                 }
             })
 
@@ -57,6 +67,7 @@ const familySlice = createSlice({
                 state.loading = false;
                 state.isFamily = false;
                 state.familyData = null;
+                state.loaded = false;
             })
             // 2. Add cases for the acceptInvite lifecycle
             .addCase(acceptInvite.pending, (state) => {

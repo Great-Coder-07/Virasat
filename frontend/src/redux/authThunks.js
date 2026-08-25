@@ -7,17 +7,16 @@ import { updateUser } from './authSlice'; // Import the slice action
 export const loginUser = createAsyncThunk(
   'auth/login',
   async (loginData, { rejectWithValue }) => {
-      try {
-          const response = await axios.post(`${USER_API_ENDPOINT}/login`, loginData, { withCredentials: true });
-          localStorage.setItem('user', JSON.stringify(response.data.user));
-          toast.success(response.data.message);
-          // Return the entire payload so other slices can use it
-          return response.data; 
-      } catch (error) {
-          const message = error.response?.data?.message || 'Login failed.';
-          toast.error(message);
-          return rejectWithValue(message);
-      }
+    try {
+      const response = await axios.post(`${USER_API_ENDPOINT}/login`, loginData, { withCredentials: true });
+      toast.success(response.data.message);
+      // Return the entire payload so other slices can use it
+      return response.data;
+    } catch (error) {
+      const message = error.response?.data?.message || 'Login failed.';
+      toast.error(message);
+      return rejectWithValue(message);
+    }
   }
 );
 
@@ -26,8 +25,6 @@ export const logoutUser = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await axios.get(`${USER_API_ENDPOINT}/logout`, { withCredentials: true });
-      // Remove the user object from localStorage
-      localStorage.removeItem('user');
       toast.success(response.data.message);
       return;
     } catch (error) {
@@ -59,6 +56,25 @@ export const updateUserProfile = createAsyncThunk(
     } catch (error) {
       const message = error.response?.data?.message || 'Failed to update profile.';
       toast.error(message);
+      return rejectWithValue(message);
+    }
+  }
+);
+
+// Secure hydration: fetch the current user from server using httpOnly cookie
+export const fetchCurrentUser = createAsyncThunk(
+  'auth/fetchCurrentUser',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(`${USER_API_ENDPOINT}/me`, { withCredentials: true });
+      return response.data.user; // return user object
+    } catch (error) {
+      // If 401, user is not authenticated
+      const status = error.response?.status;
+      if (status === 401) {
+        return rejectWithValue('Unauthenticated');
+      }
+      const message = error.response?.data?.message || 'Failed to fetch current user.';
       return rejectWithValue(message);
     }
   }

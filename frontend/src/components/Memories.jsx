@@ -433,7 +433,11 @@ export const MemoryDetailModal = ({ memory, onClose }) => {
 // ====================================================================
 export default function ArchivePage() {
   const dispatch = useDispatch();
-  const { items: memories, loading } = useSelector((state) => state.memories);
+  const {
+    items: memories,
+    loading,
+    loaded,
+  } = useSelector((state) => state.memories);
   const members = useSelector(
     (state) => state.family.familyData?.members || []
   );
@@ -511,7 +515,7 @@ export default function ArchivePage() {
           onSortChange={setSortOrder}
         />
 
-        {loading && memories.length === 0 ? (
+        {!loaded || (loading && memories.length === 0) ? (
           <div className="flex justify-center items-center mt-16">
             <Loader2 className="h-12 w-12 text-rose-500 animate-spin" />
           </div>

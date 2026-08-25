@@ -19,6 +19,7 @@ import ProtectedRoute from "./components/ProtectedRoutes";
 import VerifyOtp from "./components/auth/VerifyOtp";
 import Profile from "./components/Profile";
 import { fetchMemories } from "./redux/memoryThunks";
+import { fetchCurrentUser } from "./redux/authThunks";
 
 const appRouter = createBrowserRouter([
   { path: "/", element: <Home /> },
@@ -41,16 +42,39 @@ const appRouter = createBrowserRouter([
 
 const App = () => {
   const dispatch = useDispatch();
-  const { isAuthenticated } = useSelector((state) => state.auth);
-  // 1. Get the loading state from your family slice
-  const { loading: familyLoading } = useSelector((state) => state.family);
+  const { isAuthenticated, checked } = useSelector((state) => state.auth);
+  // 1. Get the loading state and cache from slices
+  const {
+    loading: familyLoading,
+    loaded: familyLoaded,
+    lastFetched: familyLast,
+  } = useSelector((state) => state.family);
+  const { loaded: circlesLoaded, lastFetched: circlesLast } = useSelector(
+    (state) => state.circle
+  );
+
+  // Boot: hydrate auth from secure /me endpoint
+  useEffect(() => {
+    dispatch(fetchCurrentUser());
+  }, [dispatch]);
 
   useEffect(() => {
     // If the user is authenticated on initial load...
     if (isAuthenticated) {
-      console.log("DISPATCH GET FAMILY from App");
-      dispatch(getFamilyDetails());
-      dispatch(getUserCircles());
+      const TTL = 5 * 60 * 1000; // 5 minutes
+      const now = Date.now();
+
+      // Gate family details
+      if (!familyLoaded || now - (familyLast || 0) >= TTL) {
+        dispatch(getFamilyDetails());
+      }
+
+      // Gate user circles
+      if (!circlesLoaded || now - (circlesLast || 0) >= TTL) {
+        dispatch(getUserCircles());
+      }
+
+      // Always fetch memories for dashboard recent activity
       dispatch(
         fetchMemories({
           searchTerm: "",
@@ -60,7 +84,14 @@ const App = () => {
         })
       );
     }
-  }, [isAuthenticated, dispatch]);
+  }, [
+    isAuthenticated,
+    dispatch,
+    familyLoaded,
+    familyLast,
+    circlesLoaded,
+    circlesLast,
+  ]);
 
   // 2. Conditionally render the spinner while family data is being fetched
   if (isAuthenticated && familyLoading) {

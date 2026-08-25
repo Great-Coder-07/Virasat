@@ -46,22 +46,30 @@ const uploadWithRetry = async (file, folder, maxRetries = 3) => {
 };
 
 export const createMemory = async (req, res) => {
-    let newMemory;
+    console.log("BODY:", req.body);
+    console.log("FILES:", req.files);
+    console.log("USER ID:", req.id);
 
     try {
         const { title, story, date, tags, circleId, isMilestone } = req.body;
-        const files = Array.isArray(req.files) ? req.files : [];
+        const files = Array.isArray(req.files) ? req.files || [] : [];
         const userId = req.id;
 
         if (!title || !date || files.length === 0) {
             return res.status(400).json({
                 message: "Title, date, and at least one file are required.",
+                success: false,
             });
         }
 
         const user = await User.findById(userId);
         if (!user) {
-            return res.status(404).json({ message: "User not found." });
+            return res.status(404).json({ message: "User not found.", success: false });
+        }
+        if (!user.family) {
+            return res.status(400).json({
+                message: "Join or create a family before adding memories.",
+            });
         }
         if (!user.family) {
             return res.status(400).json({
@@ -69,7 +77,26 @@ export const createMemory = async (req, res) => {
             });
         }
 
-        newMemory = await Memory.create({
+        // 1) Upload all media first; if any fails, return error (no dangling 'processing')
+        const folder = `virasat/${user.family}/memories`;
+        const uploadedResults = [];
+        try {
+            for (const file of files) {
+                const result = await uploadWithRetry(file, folder, 3);
+                uploadedResults.push(result);
+            }
+        } catch (uploadErr) {
+            console.error("❌ Upload failed:", uploadErr);
+            return res.status(502).json({ message: "Failed to upload media. Please try again.", success: false });
+        }
+
+        const formattedMedia = uploadedResults.map((r) => ({
+            url: r.secure_url,
+            type: r.resource_type,
+        }));
+
+        // 2) Create the memory as 'completed' now that uploads are done
+        const newMemory = await Memory.create({
             family: user.family,
             author: userId,
             title,
@@ -77,10 +104,10 @@ export const createMemory = async (req, res) => {
             date,
             tags: tags ? tags.split(",").map((tag) => tag.trim()) : [],
             type: "mixed",
-            circleId: circleId || null,
-            mediaURLs: [],
-            status: "processing",
-            isMilestone: isMilestone === "true",
+            circleId: circleId ? circleId : null,
+            mediaURLs: formattedMedia,
+            status: "completed",
+            isMilestone: isMilestone === 'true'
         });
 
         const folder = `virasat/${user.family}/memories`;
@@ -105,14 +132,16 @@ export const createMemory = async (req, res) => {
         ).populate("author", "fullName");
 
         if (circleId) {
-            await Circle.findByIdAndUpdate(circleId, {
-                $addToSet: { memories: newMemory._id },
-            });
+            const circle = await Circle.findById(circleId);
+            if (circle) {
+                circle.memories.push(newMemory._id);
+                await circle.save();
+            }
         }
 
         return res.status(201).json({
             success: true,
-            message: "Memory uploaded successfully.",
+            message: "Memory created successfully.",
             memory: newMemory,
         });
     } catch (error) {

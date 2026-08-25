@@ -39,6 +39,7 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: ["Chronicler", "Contributor", "Viewer"], default: "Viewer", required: true },
     family: { type: mongoose.Schema.Types.ObjectId, ref: "Family", default: null },
     circleId: [{ type: mongoose.Schema.Types.ObjectId, ref: "Circle", default: [] }],
+    memories: [{ type: mongoose.Schema.Types.ObjectId, ref: "Memory", default: [] }],
     isVerified: {
       type: Boolean,
       default: false,

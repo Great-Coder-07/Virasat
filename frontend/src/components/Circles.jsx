@@ -20,7 +20,7 @@ import { fetchMemories } from "@/redux/memoryThunks";
 import { setActiveCircleId } from "@/redux/circleSlice";
 import { updateCircleName, getUserCircles } from "@/redux/circleThunks";
 import { toast } from "react-hot-toast";
-
+//
 // ====================================================================
 // Sub-Components
 // ====================================================================
@@ -31,8 +31,6 @@ const CircleListItem = ({ circle, isSelected, onSelect }) => {
   return (
     <motion.div
       layout
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={() => dispatch(setActiveCircleId(circle._id))}
       className={`flex items-center p-3 space-x-3 rounded-lg cursor-pointer transition-colors ${
@@ -440,12 +438,12 @@ export default function Circles() {
                           circleName: renameValue.trim(),
                         })
                       ).unwrap();
-                      // Optional: ensure freshest data from server
-                      await dispatch(getUserCircles());
-                      toast.success('Circle name updated');
+                      // Ensure freshest data from server without duplicating
+                      await dispatch(getUserCircles()).unwrap();
+                      toast.success("Circle name updated");
                       setIsSettingsOpen(false);
                     } catch (err) {
-                      toast.error(String(err || 'Failed to update circle'));
+                      toast.error(String(err || "Failed to update circle"));
                     }
                   }}
                 >

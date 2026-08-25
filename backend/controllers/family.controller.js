@@ -26,6 +26,10 @@ export const createFamily = async (req, res) => {
             });
         }
 
+        const chronicler = await User.findById(chroniclerId).populate('family')
+        if (chronicler.family !== null) {
+            return res.status(403).json({ message: "User already has a family", success: false })
+        }
         // 3. Create new family document
         let family = await Family.create({
             familyName,
@@ -35,15 +39,15 @@ export const createFamily = async (req, res) => {
         });
 
         // 4. Update user to link to family and set role
-        await User.findByIdAndUpdate(chroniclerId, {
+        chronicler.updateOne({
             family: family._id,
             role: 'Chronicler'
         });
 
         // 5. Populate members & chronicler before sending back response
         family = await Family.findById(family._id)
-            .populate('members', 'fullName email role')
-            .populate('chronicler', 'fullName email role');
+            .populate('members', 'fullName email role profile')
+            .populate('chronicler', 'fullName email role profile');
 
         // 6. Send response
         return res.status(201).json({
@@ -157,8 +161,8 @@ export const getFamilyDetails = async (req, res) => {
 
         // 4. Fetch and populate family details (members + chronicler)
         const family = await Family.findById(user.family)
-            .populate('members', 'fullName email role')
-            .populate('chronicler', 'fullName email role');
+            .populate('members', 'fullName email role profile')
+            .populate('chronicler', 'fullName email role profile');
 
         // 5. Handle deleted/missing family document
         if (!family) {
@@ -290,8 +294,8 @@ export const acceptInvite = async (req, res) => {
         if (family.members.includes(userId)) {
             // ✅ Populate before sending back to frontend even in this case
             const populatedFamily = await Family.findById(familyId)
-                .populate('members', 'fullName email role')
-                .populate('chronicler', 'fullName email role');
+                .populate('members', 'fullName email role profile')
+                .populate('chronicler', 'fullName email role profile');
 
             return res.status(200).json({
                 success: true,
@@ -311,8 +315,8 @@ export const acceptInvite = async (req, res) => {
 
         // 8. Populate full family data to send to frontend
         const updatedFamily = await Family.findById(familyId)
-            .populate('members', 'fullName email role')
-            .populate('chronicler', 'fullName email role');
+            .populate('members', 'fullName email role profile')
+            .populate('chronicler', 'fullName email role profile');
 
         // 9. Respond with structured JSON
         return res.status(200).json({
@@ -406,6 +410,7 @@ export const getMemories = async (req, res) => {
 export const getMemoriesByUser = async (req, res) => {
     try {
         const userId = req.params.id;
+        const { excludeCircles = 'true', sort = 'desc' } = req.query;
         const requestingUser = await User.findById(req.id).select('family');
 
         // Validate the ID format first (to avoid CastError)
@@ -425,13 +430,17 @@ export const getMemoriesByUser = async (req, res) => {
 
         await cleanupFailedMemories(requestingUser.family);
 
-        // Find all memories authored by this user
-        const memories = await Memory.find({
-            author: userId,
-            family: requestingUser.family,
-        })
-            .populate("author", "fullName email")   // populate author details if needed
-            .sort({ date: -1 });                    // sort by latest first
+        // Base query: authored by user and completed only
+        const query = { author: userId, status: 'completed' };
+
+        // Exclude circle-tied memories by default (archive-only)
+        if (excludeCircles === 'true') {
+            query.$or = [{ circleId: null }, { circleId: { $exists: false } }];
+        }
+
+        const memories = await Memory.find(query)
+            .populate("author", "fullName email")
+            .sort({ date: sort === 'asc' ? 'asc' : 'desc' });
 
         return res.status(200).json({
             success: true,

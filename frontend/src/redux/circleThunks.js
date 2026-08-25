@@ -25,8 +25,14 @@ export const createCircle = createAsyncThunk(
 
 export const getUserCircles = createAsyncThunk(
     'family/getUserCircles',
-    async (_, { rejectWithValue }) => {
+    async (_, { rejectWithValue, getState }) => {
         try {
+            const state = getState();
+            const { loaded, lastFetched } = state.circle || {};
+            const TTL = 5 * 60 * 1000; // 5 minutes
+            if (loaded && Date.now() - lastFetched < TTL) {
+                return state.circle.items;
+            }
             const response = await axios.get(
                 `${CIRCLE_API_ENDPOINT}/`,
                 { withCredentials: true }

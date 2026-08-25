@@ -10,6 +10,7 @@ import { FAMILY_API_ENDPOINT } from "@/utils/constant";
 import { fetchMemories } from "@/redux/memoryThunks";
 import { getUserCircles } from "@/redux/circleThunks";
 import { getFamilyDetails } from "@/redux/familyThunks";
+import { Loader2 } from "lucide-react";
 
 // --- Icons updated with the new color theme ---
 const ClockIcon = () => <span className="text-sky-500">🕒</span>;
@@ -33,9 +34,21 @@ const Dashboard = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
-  const { familyData } = useSelector((state) => state.family);
-  const memories = useSelector((state) => state.memories.items || []);
-  const circles = useSelector((state) => state.circle.items || []);
+  const {
+    familyData,
+    loaded: familyLoaded,
+    loading: familyLoading,
+  } = useSelector((state) => state.family);
+  const {
+    items: memories,
+    loaded: memoriesLoaded,
+    loading: memoriesLoading,
+  } = useSelector((state) => state.memories);
+  const {
+    items: circles,
+    loaded: circlesLoaded,
+    loading: circlesLoading,
+  } = useSelector((state) => state.circle);
   const handleExportPdf = async () => {
     try {
       const params = {
@@ -80,7 +93,6 @@ const Dashboard = () => {
           sort: "desc",
         })
       );
-      dispatch(getUserCircles());
     }, 60000);
     return () => clearInterval(id);
   }, [dispatch]);
@@ -115,7 +127,7 @@ const Dashboard = () => {
           <div>
             {/* 2. New Text Colors: Using sky and slate for better contrast */}
             <h1 className="text-3xl font-bold font-serif text-sky-800">
-              Welcome back, {user?.name || "Friend"}!
+              Welcome back, {user?.fullName || "Friend"}!
             </h1>
             <p className="text-slate-600">
               Here's what's happening in your family's haven.
@@ -151,32 +163,40 @@ const Dashboard = () => {
                 Family Overview
               </h2>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-              <div className="flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold text-sky-700">
-                  {familyMembers.length}
-                </span>
-                <span className="text-slate-700">Members</span>
+            {(!familyLoaded && familyLoading) ||
+            (!circlesLoaded && circlesLoading) ||
+            (!memoriesLoaded && memoriesLoading) ? (
+              <div className="flex justify-center items-center h-40">
+                <Loader2 className="h-8 w-8 text-sky-600 animate-spin" />
               </div>
-              <div className="flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold text-green-700">
-                  {memories.length}
-                </span>
-                <span className="text-slate-700">Memories</span>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+                <div className="flex flex-col items-center justify-center">
+                  <span className="text-3xl font-bold text-sky-700">
+                    {familyMembers.length}
+                  </span>
+                  <span className="text-slate-700">Members</span>
+                </div>
+                <div className="flex flex-col items-center justify-center">
+                  <span className="text-3xl font-bold text-green-700">
+                    {memories.length}
+                  </span>
+                  <span className="text-slate-700">Memories</span>
+                </div>
+                <div className="flex flex-col items-center justify-center">
+                  <span className="text-3xl font-bold text-blue-700">
+                    {circles.length}
+                  </span>
+                  <span className="text-slate-700">Circles</span>
+                </div>
+                <div className="flex flex-col items-center justify-center">
+                  <span className="text-3xl font-bold text-emerald-700">
+                    {recentUploads.length}
+                  </span>
+                  <span className="text-slate-700">Recent Uploads</span>
+                </div>
               </div>
-              <div className="flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold text-blue-700">
-                  {circles.length}
-                </span>
-                <span className="text-slate-700">Circles</span>
-              </div>
-              <div className="flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold text-emerald-700">
-                  {recentUploads.length}
-                </span>
-                <span className="text-slate-700">Recent Uploads</span>
-              </div>
-            </div>
+            )}
           </section>
 
           {/* Story Prompts (encourage uploads) */}
@@ -213,29 +233,35 @@ const Dashboard = () => {
                 Recent Activity
               </h2>
             </div>
-            <ul className="space-y-3 text-sm text-slate-700">
-              {recentUploads.length === 0 ? (
-                <li className="text-slate-500">No recent uploads.</li>
-              ) : (
-                recentUploads.map((m) => (
-                  <li key={m._id} className="flex items-center gap-2">
-                    <span className="font-semibold">
-                      {m.author?.fullName || "Someone"}
-                    </span>
-                    added{" "}
-                    <span className="font-semibold">
-                      {m.mediaURLs?.length || 1}
-                    </span>{" "}
-                    {m.mediaURLs?.length === 1 ? "item " : "items "}
-                    to "{m.title}" on{" "}
-                    {new Date(
-                      m.createdAt || m.updatedAt || m.date
-                    ).toLocaleString()}
-                    .
-                  </li>
-                ))
-              )}
-            </ul>
+            {!memoriesLoaded && memoriesLoading ? (
+              <div className="flex justify-center items-center h-24">
+                <Loader2 className="h-6 w-6 text-sky-600 animate-spin" />
+              </div>
+            ) : (
+              <ul className="space-y-3 text-sm text-slate-700">
+                {recentUploads.length === 0 ? (
+                  <li className="text-slate-500">No recent uploads.</li>
+                ) : (
+                  recentUploads.map((m) => (
+                    <li key={m._id} className="flex items-center gap-2">
+                      <span className="font-semibold">
+                        {m.author?.fullName || "Someone"}
+                      </span>
+                      added{" "}
+                      <span className="font-semibold">
+                        {m.mediaURLs?.length || 1}
+                      </span>{" "}
+                      {m.mediaURLs?.length === 1 ? "item " : "items "}
+                      to "{m.title}" on{" "}
+                      {new Date(
+                        m.createdAt || m.updatedAt || m.date
+                      ).toLocaleString()}
+                      .
+                    </li>
+                  ))
+                )}
+              </ul>
+            )}
           </section>
 
           {/* Quick Actions - full width row under grid */}

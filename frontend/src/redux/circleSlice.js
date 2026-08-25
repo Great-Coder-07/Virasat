@@ -7,6 +7,8 @@ const circlesSlice = createSlice({
         items: [], // An array to hold all the circles
         activeCircleId: null,
         loading: false,
+        loaded: false,
+        lastFetched: 0,
         error: null,
     },
     reducers: {
@@ -43,10 +45,13 @@ const circlesSlice = createSlice({
                 state.loading = false;
                 state.items = action.payload; // Replace items with fetched circles
                 console.log("Fetched user circles:", action.payload);
+                state.loaded = true;
+                state.lastFetched = Date.now();
             })
             .addCase(getUserCircles.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload;
+                state.loaded = false;
             });
         builder
             .addCase(updateCircleName.pending, (state) => {

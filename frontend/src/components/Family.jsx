@@ -51,7 +51,7 @@ const MemberCard = ({ member, currentUserRole, onCardClick }) => (
   >
     <div className="flex items-center gap-4">
       <Avatar className="h-12 w-12">
-        <AvatarImage src={member.profilePic} alt={member.fullName} />
+        <AvatarImage src={member.profile?.profilePhoto} alt={member.fullName} />
         <AvatarFallback className="bg-rose-200 text-rose-700">
           {member.fullName[0]}
         </AvatarFallback>
@@ -99,26 +99,35 @@ const MemberDetailSidebar = ({ member, onClose, onMemoryClick }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // ✅ Reset state whenever member changes
+  // Auto-fetch archive-only memories when sidebar opens or member changes
   useEffect(() => {
+    let active = true;
     setMemories([]);
-    setLoading(false);
-    setError("");
-  }, [member]);
-
-  const fetchMemories = () => {
     setLoading(true);
     setError("");
+
     axios
       .get(`${FAMILY_API_ENDPOINT}/memories/user/${member._id}`, {
+        params: { excludeCircles: "true", sort: "desc" },
         withCredentials: true,
       })
-      .then((response) => setMemories(response.data.memories))
-      .catch((err) =>
-        setError(err.response?.data?.message || "Failed to fetch memories")
-      )
-      .finally(() => setLoading(false));
-  };
+      .then((response) => {
+        if (!active) return;
+        setMemories(response.data.memories || []);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setError(err.response?.data?.message || "Failed to fetch memories");
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [member]);
 
   return (
     <motion.div
@@ -136,7 +145,10 @@ const MemberDetailSidebar = ({ member, onClose, onMemoryClick }) => {
           &times;
         </button>
         <Avatar className="h-24 w-24 mt-8 border-4 border-white shadow-lg">
-          <AvatarImage src={member.profilePic} alt={member.fullName} />
+          <AvatarImage
+            src={member.profile?.profilePhoto}
+            alt={member.fullName}
+          />
           <AvatarFallback className="bg-rose-200 text-rose-800 text-3xl">
             {member.fullName[0]}
           </AvatarFallback>
@@ -155,57 +167,68 @@ const MemberDetailSidebar = ({ member, onClose, onMemoryClick }) => {
         </div>
         <p className="text-rose-700 mt-4">{member.email}</p>
 
-        <motion.button
-          className="mt-8 w-full bg-rose-600 text-white py-3 rounded-lg font-semibold shadow-md"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={fetchMemories} // ✅ Correct: call on click
-        >
-          View All Memories
-        </motion.button>
-
         {/* Render loading, error, or memories */}
-        {loading && <p className="mt-4 text-rose-700">Loading...</p>}
+        {loading && (
+          <div className="mt-6 grid grid-cols-2 gap-3 w-full">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-28 bg-white/60 border border-rose-100 rounded-lg animate-pulse"
+              />
+            ))}
+          </div>
+        )}
         {error && <p className="mt-4 text-red-600">{error}</p>}
 
-        <div className="mt-4 w-full space-y-3">
-          {memories.map((mem) => (
-            <div
-              key={mem._id}
-              className="bg-white p-3 rounded-lg shadow-sm text-left cursor-pointer"
-              onClick={() => onMemoryClick && onMemoryClick(mem)}
-            >
-              <div className="w-full max-h-96 flex flex-col gap-2 mb-4 overflow-y-auto">
-                {mem.mediaURLs?.map((media, idx) => (
-                  <div
-                    key={idx}
-                    className="w-full flex justify-center items-center bg-gray-100 rounded-lg"
-                  >
-                    {media.type === "video" ? (
-                      <video
-                        src={media.url}
-                        controls
-                        className="max-w-full max-h-96 rounded-lg"
-                      />
-                    ) : (
-                      <img
-                        src={media.url}
-                        alt={`${mem.title}-${idx}`}
-                        className="max-w-full max-h-96 object-contain rounded-lg"
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-              <h3 className="font-semibold text-rose-800">{mem.title}</h3>
-
-              <p className="text-sm text-rose-600">
-                {new Date(mem.date).toLocaleDateString()}
+        {!loading && !error && (
+          <div className="mt-4 w-full grid grid-cols-2 gap-3">
+            {memories.length === 0 ? (
+              <p className="col-span-2 text-rose-600 text-center">
+                No archive memories yet.
               </p>
-              <p className="text-sm text-gray-700 truncate">{mem.story}</p>
-            </div>
-          ))}
-        </div>
+            ) : (
+              memories.map((mem) => {
+                const thumb = mem.mediaURLs?.[0];
+                return (
+                  <div
+                    key={mem._id}
+                    className="bg-white rounded-lg border border-rose-100 overflow-hidden shadow-sm cursor-pointer group"
+                    onClick={() => onMemoryClick && onMemoryClick(mem)}
+                    title={mem.title}
+                  >
+                    <div className="relative h-28 w-full bg-gray-100">
+                      {thumb ? (
+                        thumb.type === "video" ? (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <span className="text-xs text-gray-600">Video</span>
+                          </div>
+                        ) : (
+                          <img
+                            src={thumb.url}
+                            alt={mem.title}
+                            className="w-full h-full object-cover"
+                          />
+                        )
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                          No media
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-2">
+                      <p className="text-sm font-semibold text-rose-800 truncate">
+                        {mem.title}
+                      </p>
+                      <p className="text-xs text-rose-600">
+                        {new Date(mem.date).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
       </div>
     </motion.div>
   );
