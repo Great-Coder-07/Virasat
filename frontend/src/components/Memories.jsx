@@ -155,6 +155,8 @@ const FilterBar = ({
 
 const MemoryCard = ({ memory, onCardClick }) => {
   const isProcessing = memory.status === "processing";
+  const hasFailed = memory.status === "failed";
+  const isUnavailable = isProcessing || hasFailed;
 
   return (
     <motion.div
@@ -164,15 +166,17 @@ const MemoryCard = ({ memory, onCardClick }) => {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
       className={`bg-white rounded-lg shadow-lg overflow-hidden h-full flex flex-col ${
-        isProcessing ? "cursor-not-allowed filter grayscale" : "cursor-pointer"
+        isUnavailable ? "cursor-not-allowed filter grayscale" : "cursor-pointer"
       }`}
-      onClick={() => !isProcessing && onCardClick(memory)}
+      onClick={() => !isUnavailable && onCardClick(memory)}
     >
       <div className="relative w-full h-48 overflow-hidden">
-        {isProcessing ? (
+        {isUnavailable ? (
           <img
-            src="https://placehold.co/600x400/fecdd3/b91c1c?text=Processing..."
-            alt="Processing"
+            src={`https://placehold.co/600x400/fecdd3/b91c1c?text=${
+              hasFailed ? "Upload+Failed" : "Processing..."
+            }`}
+            alt={hasFailed ? "Upload failed" : "Processing"}
             className="w-full h-full object-cover"
           />
         ) : (
@@ -211,6 +215,11 @@ const MemoryCard = ({ memory, onCardClick }) => {
         {isProcessing && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/50">
             <Loader2 className="h-8 w-8 text-white animate-spin" />
+          </div>
+        )}
+        {hasFailed && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50 px-4 text-center text-sm font-medium text-white">
+            Upload failed. Please try adding this memory again.
           </div>
         )}
       </div>
@@ -451,6 +460,23 @@ export default function ArchivePage() {
     }, 500);
     return () => clearTimeout(handler);
   }, [searchTerm, filters, sortOrder, dispatch]);
+
+  useEffect(() => {
+    if (!memories.some((memory) => memory.status === "processing")) return;
+
+    const intervalId = setInterval(() => {
+      dispatch(
+        fetchMemories({
+          searchTerm,
+          filters,
+          circleId: "null",
+          sort: sortOrder,
+        })
+      );
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [memories, searchTerm, filters, sortOrder, dispatch]);
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-rose-100 via-pink-50 to-amber-50">

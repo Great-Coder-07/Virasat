@@ -12,7 +12,8 @@ const memorySlice = createSlice({
     extraReducers: (builder) => {
         builder
             .addCase(fetchMemories.pending, (state) => {
-                state.loading = true;
+                state.loading = state.items.length === 0;
+                state.error = null;
             })
             .addCase(fetchMemories.fulfilled, (state, action) => {
                 state.loading = false;

@@ -20,13 +20,25 @@ const generateOTP = () => {
 export const register = async (req, res) => {
     try {
         const { fullName, email, phoneNumber, password } = req.body;
+        const normalizedFullName = fullName?.trim();
+        const normalizedEmail = email?.trim().toLowerCase();
+        const normalizedPhoneNumber = String(phoneNumber ?? "").trim();
+
         if (!fullName || !email || !phoneNumber || !password) {
             return res.status(400).json({
                 message: "All fields are required.",
                 success: false,
             });
         }
-        const user = await User.findOne({ email });
+
+        if (!/^\d{10}$/.test(normalizedPhoneNumber)) {
+            return res.status(400).json({
+                message: "Phone number must be exactly 10 digits.",
+                success: false,
+            });
+        }
+
+        const user = await User.findOne({ email: normalizedEmail });
         if (user) {
             return res.status(409).json({
                 message: "User already exists with this email.",
@@ -38,9 +50,9 @@ export const register = async (req, res) => {
         const otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes from now
 
         await User.create({
-            fullName,
-            email,
-            phoneNumber,
+            fullName: normalizedFullName,
+            email: normalizedEmail,
+            phoneNumber: Number(normalizedPhoneNumber),
             password: hashedPassword,
             otp: verificationCode,
             otpExpiry: new Date(otpExpiry),
@@ -51,12 +63,12 @@ export const register = async (req, res) => {
         const mailOptions = {
             // FIX: Correctly access the environment variable without quotes.
             from: process.env.EMAIL_USER,
-            to: email,
+            to: normalizedEmail,
             subject: 'OTP Verification for Your Account',
             text: `Welcome! Your One-Time Password (OTP) is: ${verificationCode}\nIt will expire in 10 minutes.`
         };
 
-        transporter.sendMail(mailOptions);
+        await transporter.sendMail(mailOptions);
 
         return res.status(201).json({
             message: "Account created successfully. Please check your email for the OTP.",
@@ -64,6 +76,28 @@ export const register = async (req, res) => {
         });
     } catch (error) {
         console.error("Error in register function:", error);
+
+        if (error.code === 11000) {
+            return res.status(409).json({
+                message: "User already exists with this email.",
+                success: false,
+            });
+        }
+
+        if (error.name === "ValidationError" || error.name === "CastError") {
+            return res.status(400).json({
+                message: error.message,
+                success: false,
+            });
+        }
+
+        if (error.name?.includes("Error") && error.message?.toLowerCase().includes("invalid login")) {
+            return res.status(500).json({
+                message: "Verification email could not be sent. Check EMAIL_USER and EMAIL_PASS.",
+                success: false,
+            });
+        }
+
         return res.status(500).json({
             message: "Internal Server Error",
             success: false,

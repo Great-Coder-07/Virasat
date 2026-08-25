@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { Memory } from '../models/memory.model.js';
 import { jsPDF } from 'jspdf';
 import mongoose from 'mongoose';
+import { cleanupFailedMemories } from '../utils/memoryCleanup.js';
 dotenv.config();
 
 
@@ -335,12 +336,26 @@ export const getMemories = async (req, res) => {
     try {
         const userId = req.id;
         const user = await User.findById(userId);
-        if (!user || !user.family) { /* ... */ }
+        if (!user || !user.family) {
+            return res.status(404).json({ message: "User or family not found." });
+        }
 
         // Get the optional circleId from the query
         const { search, type, member, tag, circleId, sort } = req.query;
         let query = { family: user.family };
-        console.log("Circle ID:", circleId);
+
+        // Background uploads cannot resume after a server restart. Mark old
+        // placeholders as failed so clients do not poll forever.
+        const staleBefore = new Date(Date.now() - 15 * 60 * 1000);
+        await Memory.updateMany(
+            {
+                family: user.family,
+                status: 'processing',
+                createdAt: { $lt: staleBefore }
+            },
+            { $set: { status: 'failed' } }
+        );
+        await cleanupFailedMemories(user.family);
 
         // FIX: Simplified and more robust logic for handling circleId
         if (circleId && circleId !== 'null') {
@@ -361,7 +376,6 @@ export const getMemories = async (req, res) => {
         if (tag && tag !== 'all') {
             query.tags = tag;
         }
-        console.log("Circle ID in query:", query.circle);
         // 4. Add the search term to the query using a case-insensitive regex
         if (search) {
             const searchRegex = new RegExp(search, 'i');
@@ -392,6 +406,7 @@ export const getMemories = async (req, res) => {
 export const getMemoriesByUser = async (req, res) => {
     try {
         const userId = req.params.id;
+        const requestingUser = await User.findById(req.id).select('family');
 
         // Validate the ID format first (to avoid CastError)
         if (!mongoose.Types.ObjectId.isValid(userId)) {
@@ -401,8 +416,20 @@ export const getMemoriesByUser = async (req, res) => {
             });
         }
 
+        if (!requestingUser?.family) {
+            return res.status(404).json({
+                success: false,
+                message: "User or family not found.",
+            });
+        }
+
+        await cleanupFailedMemories(requestingUser.family);
+
         // Find all memories authored by this user
-        const memories = await Memory.find({ author: userId })
+        const memories = await Memory.find({
+            author: userId,
+            family: requestingUser.family,
+        })
             .populate("author", "fullName email")   // populate author details if needed
             .sort({ date: -1 });                    // sort by latest first
 

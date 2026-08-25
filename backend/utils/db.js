@@ -1,12 +1,21 @@
-import mongoose from "mongoose"
+import mongoose from "mongoose";
 
-const connectDb =  async ()=>{
-    try{
-       await mongoose.connect(process.env.MONGO_URI)
-       console.log("mongodb connected successfully")
+const connectDb = async () => {
+    const mongoUri = process.env.MONGO_URI;
+
+    if (!mongoUri) {
+        throw new Error("MONGO_URI is missing from the environment.");
     }
-    catch(error){
-        console.log(error);
+
+    try {
+        await mongoose.connect(mongoUri, {
+            serverSelectionTimeoutMS: 10000,
+        });
+        console.log("MongoDB connected successfully");
+    } catch (error) {
+        console.error("MongoDB connection failed:", error.message);
+        throw error;
     }
-}
-export default connectDb
+};
+
+export default connectDb;

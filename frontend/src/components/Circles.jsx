@@ -59,18 +59,32 @@ const CircleListItem = ({ circle, isSelected, onSelect }) => {
   );
 };
 
-const CircleMemoryCard = ({ memory, onCardClick }) => (
+const CircleMemoryCard = ({ memory, onCardClick }) => {
+  const isProcessing = memory.status === "processing";
+  const hasFailed = memory.status === "failed";
+  const isUnavailable = isProcessing || hasFailed;
+
+  return (
   <motion.div
     layout
     initial={{ opacity: 0, scale: 0.9 }}
     animate={{ opacity: 1, scale: 1 }}
     exit={{ opacity: 0, scale: 0.9 }}
     transition={{ duration: 0.2 }}
-    onClick={() => onCardClick(memory)}
-    className="bg-white/80 rounded-lg shadow-md overflow-hidden cursor-pointer"
+    onClick={() => !isUnavailable && onCardClick(memory)}
+    className={`bg-white/80 rounded-lg shadow-md overflow-hidden ${
+      isUnavailable ? "cursor-not-allowed grayscale" : "cursor-pointer"
+    }`}
   >
     <div className="relative w-full h-40 overflow-hidden">
-      {(() => {
+      {isUnavailable ? (
+        <div className="w-full h-full bg-rose-100 flex flex-col items-center justify-center gap-2 px-3 text-center text-rose-700">
+          {isProcessing && <Loader2 className="h-7 w-7 animate-spin" />}
+          <span className="text-sm font-medium">
+            {hasFailed ? "Upload failed. Please try again." : "Processing media..."}
+          </span>
+        </div>
+      ) : (() => {
         // Support both memory.mediaURLs (array) and legacy memory.mediaUrl (string)
         const first = Array.isArray(memory.mediaURLs)
           ? memory.mediaURLs[0]
@@ -128,7 +142,8 @@ const CircleMemoryCard = ({ memory, onCardClick }) => (
       <p className="text-xs text-rose-600">by {memory.author.fullName}</p>
     </div>
   </motion.div>
-);
+  );
+};
 
 const CircleDetail = ({
   circle,
@@ -274,6 +289,28 @@ export default function Circles() {
       setRenameValue(selectedCircle.circleName || "");
     }
   }, [selectedCircle, sortOrder, dispatch]);
+
+  useEffect(() => {
+    if (
+      !selectedCircle ||
+      !memories.some((memory) => memory.status === "processing")
+    ) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      dispatch(
+        fetchMemories({
+          searchTerm: "",
+          filters: {},
+          circleId: selectedCircle._id,
+          sort: sortOrder,
+        })
+      );
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [selectedCircle, memories, sortOrder, dispatch]);
 
   const filteredCircles = useMemo(() => {
     if (!circles) return [];
